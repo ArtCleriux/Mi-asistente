@@ -1,19 +1,20 @@
-// 1. Importamos 'useState' desde React
+// Importaciones de React y dnd-kit
 import React, { useState, useEffect } from 'react';
 import Column from './Column';
-// 2. ¡Importamos DragOverlay y los nuevos hooks!
 import { DndContext, closestCorners, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import TaskCard from './TaskCard'; 
+// Importaciones de Firebase
 import { auth, db } from '../firebase.js';
 import { 
   collection, 
-  onSnapshot, // Para escuchar en tiempo real
+  onSnapshot, // Para escuchar cambios en tiempo real
   doc, 
-  updateDoc, // Para actualizar documentos
-  query,       // Para consultar
+  updateDoc, // Para actualizar el estado de la tarea
+  query,       // Para construir consultas
   where        // Para filtrar por usuario
 } from "firebase/firestore";
 
+// Configuración de la animación del clon de la tarjeta al arrastrar y soltar
 const dropAnimationConfig = {
   sideEffects: defaultDropAnimationSideEffects({
     styles: {
@@ -25,56 +26,69 @@ const dropAnimationConfig = {
 };
 
 
+/**
+ * Componente principal del Tablero Kanban.
+ * Maneja el estado de las tareas, la conexión con Firebase y la lógica de Drag and Drop.
+ */
 function Board() {
+  // Estado para almacenar las tareas agrupadas por columna (status)
   const [board, setBoard] = useState({
     "Por Hacer": [],
     "En Progreso": [],
     "Hecho": []
   });
+  // Estado para la tarea que se está arrastrando (necesario para el DragOverlay)
   const [activeTask, setActiveTask] = useState(null);
- useEffect(() => {
-    // Obtenemos el ID del usuario actual
-    const userId = auth.currentUser?.uid;
-    if (!userId) return; // Si no hay usuario, no hacemos nada
 
-    // Creamos una referencia a la colección de "tareas"
+  /**
+   * Hook para obtener y escuchar las tareas de Firestore en tiempo real.
+   * Filtra las tareas por el ID del usuario actual.
+   */
+  useEffect(() => {
+    const userId = auth.currentUser?.uid;
+    if (!userId) return; 
+
     const tasksCollectionRef = collection(db, 'tasks');
-    
-    // Creamos una consulta para obtener SOLO las tareas de este usuario
+    // Consulta para obtener SOLO las tareas del usuario actual
     const q = query(tasksCollectionRef, where("userId", "==", userId));
 
-    // onSnapshot es el "oyente" en tiempo real.
-    // Se ejecuta una vez al inicio y luego cada vez que los datos cambian.
+    // Establece el oyente en tiempo real
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      // Reiniciamos el tablero
+      // Reconstruye el tablero con los datos más recientes
       const newBoard = { "Por Hacer": [], "En Progreso": [], "Hecho": [] };
       
-      // Recorremos las tareas de la base de datos
       snapshot.forEach((doc) => {
-        const task = { ...doc.data(), id: doc.id }; // Añadimos el ID del doc a la tarea
-        // Clasificamos la tarea en su columna
+        const task = { ...doc.data(), id: doc.id };
+        // Asigna la tarea a su columna según el estado (status)
         if (newBoard[task.status]) {
           newBoard[task.status].push(task);
         }
       });
       
-      // Actualizamos el estado de React con los datos de Firebase
+      // Actualiza el estado de React
       setBoard(newBoard);
     });
 
-    // Devolvemos la función 'unsubscribe' para limpiar el oyente
+    // Limpia el oyente de Firebase al desmontar
     return () => unsubscribe(); 
 
   }, []);
 
+  /**
+   * Maneja el inicio del arrastre.
+   * Busca la tarea que se está arrastrando y la almacena para el DragOverlay.
+   */
   const handleDragStart = (event) => {
     const { active } = event;
-    // Buscamos la tarea en nuestro 'board' y la guardamos
     const task = Object.values(board).flat().find(t => t.id === active.id);
     setActiveTask(task);
   };
 
 
+  /**
+   * Maneja el final del arrastre.
+   * Determina la columna de destino y actualiza el estado en Firestore.
+   */
   const handleDragEnd = async (event) => {
     const { active, over } = event;
 
@@ -86,29 +100,29 @@ function Board() {
     const activeId = active.id;
     const overId = over.id;
 
-
+    // Determina el título de la columna de origen
     const originColumnTitle = Object.keys(board).find(key => 
       board[key].some(task => task.id === activeId)
     );
 
-
+    // Determina el título de la columna de destino
     const destinationColumnTitle = board[overId] 
-      ? overId // 1. Soltamos sobre una columna vacía (el ID es el título)
-      : Object.keys(board).find(key => // 2. Soltamos sobre una tarea
+      ? overId // Se soltó directamente sobre un contenedor de columna (Droppable)
+      : Object.keys(board).find(key => // Se soltó sobre otra tarjeta (Sortable)
           board[key].some(task => task.id === overId)
         );
 
-    // Si no encontramos un destino, o si es el mismo lugar, no hacemos nada
+    // Si no hay cambio o no se encuentra destino, no hace nada
     if (!originColumnTitle || !destinationColumnTitle || originColumnTitle === destinationColumnTitle) {
-      setActiveTask(null); // Limpia la tarea activa
+      setActiveTask(null);
       return;
     }
- try {
-      // Creamos una referencia al documento que queremos mover
+    
+    // Si la columna cambió, actualiza Firebase
+    try {
       const taskDocRef = doc(db, 'tasks', activeId);
-      // Actualizamos solo el campo 'status'
       await updateDoc(taskDocRef, {
-        status: destinationColumnTitle
+        status: destinationColumnTitle // Solo actualiza el campo 'status'
       });
     } catch (error) {
       console.error("Error al mover la tarea:", error);
@@ -118,22 +132,21 @@ function Board() {
   };
 
   return (
-    // 7. Actualizamos el DndContext con los nuevos "handlers"
     <DndContext 
       collisionDetection={closestCorners} 
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => setActiveTask(null)} // Limpia si se cancela
+      onDragCancel={() => setActiveTask(null)}
     >
       <div className="flex-1 h-screen p-10 overflow-y-auto">
         <h2 className="text-3xl font-bold mb-8">Mi Tablero Kanban</h2>
         
         <div className="grid grid-cols-3 gap-6">
           
+          {/* Componentes de Columna */}
           <Column 
             title="Por Hacer" 
             tasks={board["Por Hacer"]} 
-            setBoard={userId => setBoard(userId)}
           />
           <Column title="En Progreso" tasks={board["En Progreso"]} />
           <Column title="Hecho" tasks={board["Hecho"]} />
@@ -141,8 +154,7 @@ function Board() {
         </div>
       </div>
 
-      {/* 8. ¡EL OVERLAY MÁGICO! */}
-      {/* Esto renderiza el "clon" de la tarjeta que sigue al mouse */}
+      {/* DragOverlay: Renderiza el clon de la tarjeta que sigue al mouse */}
       <DragOverlay dropAnimation={dropAnimationConfig}> 
         {activeTask ? (
           <TaskCard task={activeTask} />

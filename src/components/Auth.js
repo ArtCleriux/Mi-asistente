@@ -37,24 +37,18 @@ function Auth() {
   };
 
   return (
-    // Div principal que centra todo
     <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
-      
-      {/* La tarjeta del formulario */}
       <div className="bg-gray-800 p-8 rounded-lg shadow-xl w-full max-w-sm">
-        
         <h2 className="text-3xl font-bold text-white text-center mb-6">
           {isLogin ? 'Iniciar Sesión' : 'Registrarse'}
         </h2>
 
-        {/* Muestra de errores */}
         {error && (
           <p className="bg-red-500 text-white p-3 rounded-md mb-4 text-sm text-center">
             {error}
           </p>
         )}
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300">
@@ -95,7 +89,6 @@ function Auth() {
           </button>
         </form>
 
-        {/* Botón para cambiar entre Login y Registro */}
         <button
           onClick={() => {
             setIsLogin(!isLogin);

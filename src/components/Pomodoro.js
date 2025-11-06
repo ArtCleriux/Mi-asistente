@@ -5,6 +5,10 @@ const WORK_DURATION = 25 * 60; // 25 minutos
 const SHORT_BREAK_DURATION = 5 * 60; // 5 minutos
 const LONG_BREAK_DURATION = 15 * 60; // 15 minutos
 
+/**
+ * Componente del Temporizador Pomodoro.
+ * Gestiona el temporizador, los modos (trabajo, descanso) y el conteo de ciclos.
+ */
 function Pomodoro() {
   const [mode, setMode] = useState('work'); // 'work', 'short', 'long'
   const [timeLeft, setTimeLeft] = useState(WORK_DURATION);
@@ -21,20 +25,19 @@ function Pomodoro() {
         setTimeLeft((time) => time - 1);
       }, 1000);
     } else if (isActive && timeLeft === 0) {
-      // Si el tiempo llega a 0
+      // Si el tiempo llega a 0, detenemos y cambiamos de modo
       setIsActive(false);
-      // Aquí podrías agregar un sonido
       
-      // Cambiar al siguiente modo
+      // Lógica para el siguiente modo
       if (mode === 'work') {
         const newCycleCount = cycleCount + 1;
         setCycleCount(newCycleCount);
-        // Si completamos 4 ciclos, toca descanso largo
+        // Descanso largo cada 4 ciclos de trabajo
         if (newCycleCount % 4 === 0) {
           setMode('long');
           setTimeLeft(LONG_BREAK_DURATION);
         } else {
-          // Si no, descanso corto
+          // Descanso corto
           setMode('short');
           setTimeLeft(SHORT_BREAK_DURATION);
         }
@@ -45,21 +48,22 @@ function Pomodoro() {
       }
     }
 
-    // Función de limpieza: se ejecuta cuando el componente se desmonta o 'isActive'/'timeLeft' cambian
+    // Función de limpieza: detiene el intervalo cuando el componente se desmonta o el efecto se vuelve a ejecutar
     return () => clearInterval(interval);
   }, [isActive, timeLeft, mode, cycleCount]);
 
-  // Función para formatear el tiempo de segundos a MM:SS
+  // Función utilitaria para formatear los segundos a MM:SS
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds < 10 ? '0' : ''}${remainingSeconds}`;
   };
 
-  // Cambiar de modo manualmente
+  // Función para cambiar de modo manualmente
   const switchMode = (newMode) => {
     setMode(newMode);
-    setIsActive(false);
+    setIsActive(false); // Pausa el temporizador
+    // Establece el tiempo restante para el nuevo modo
     switch (newMode) {
       case 'work':
         setTimeLeft(WORK_DURATION);
@@ -75,19 +79,18 @@ function Pomodoro() {
     }
   };
 
-  // Botón principal (Start/Pause)
+  // Iniciar/Pausar el temporizador
   const handleStartPause = () => {
     setIsActive(!isActive);
   };
 
-  // Botón de Reset
+  // Reiniciar el temporizador al tiempo preestablecido del modo actual
   const handleReset = () => {
     setIsActive(false);
-    // Resetea al tiempo del modo actual
-    switchMode(mode);
+    switchMode(mode); // Usa switchMode para establecer el tiempo correcto
   };
   
-  // Clases dinámicas para los botones de modo
+  // Clases dinámicas para resaltar el modo activo en los botones
   const getModeButtonClass = (buttonMode) => {
     return `px-4 py-2 rounded-md font-medium transition-colors ${
       mode === buttonMode 
@@ -99,7 +102,7 @@ function Pomodoro() {
   return (
     <div className="flex-1 h-screen p-10 overflow-y-auto bg-gray-900 text-white flex flex-col items-center justify-center">
       
-      {/* Botones de Modo */}
+      {/* Botones de Modo para seleccionar Trabajo o Descanso */}
       <div className="flex space-x-4 mb-8">
         <button onClick={() => switchMode('work')} className={getModeButtonClass('work')}>
           Trabajo
@@ -112,12 +115,12 @@ function Pomodoro() {
         </button>
       </div>
 
-      {/* Display del Temporizador */}
+      {/* Display del Temporizador MM:SS */}
       <div className="text-9xl font-bold mb-10">
         {formatTime(timeLeft)}
       </div>
 
-      {/* Botones de Control */}
+      {/* Botones de Control (Iniciar/Pausar y Reset) */}
       <div className="flex space-x-6">
         <button 
           onClick={handleStartPause} 
@@ -137,7 +140,7 @@ function Pomodoro() {
         </button>
       </div>
       
-      {/* Contador de Ciclos */}
+      {/* Contador de Ciclos completados (solo ciclos de 'work') */}
       <div className="mt-8 text-xl text-gray-400">
         Ciclos completados: {cycleCount}
       </div>
