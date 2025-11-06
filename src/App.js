@@ -1,23 +1,19 @@
-import logo from './logo.svg';
-import './App.css';
+// No necesitamos App.css por ahora
+// import './App.css'; 
+
+// 1. Importa las dos piezas que acabamos de crear
+import Sidebar from './components/Sidebar';
+import Board from './components/Board';
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
+    // Usamos "flex" para poner los componentes uno al lado del otro
+    <div className="flex">
+      {/* 2. Renderiza la barra lateral (fija) */}
+      <Sidebar />
+
+      {/* 3. Renderiza el área de contenido (flexible) */}
+      <Board />
     </div>
   );
 }
