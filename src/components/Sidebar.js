@@ -1,31 +1,49 @@
 import React from 'react';
+import { auth } from '../firebase.js';
+import { signOut } from "firebase/auth";
 
-// Este es un componente de React. Es solo una función que devuelve HTML (JSX).
-function Sidebar() {
+// 1. Recibimos 'setActiveView' como prop
+function Sidebar({ setActiveView }) {
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+    }
+  };
+
   return (
-    // Estas son clases de Tailwind:
-    // h-screen = altura de pantalla completa
-    // w-64 = ancho de 64 unidades (16rem)
-    // bg-gray-800 = un fondo gris un poco más claro que el body
-    <div className="h-screen w-64 bg-gray-800 text-white">
+    <div className="h-screen w-64 bg-gray-800 text-white flex flex-col">
       <div className="p-5">
         <h1 className="text-2xl font-bold">Mi Asistente</h1>
       </div>
-        <nav className="p-3">
-          {/* Cambiamos <a> por <button>.
-            Añadimos 'w-full' (ancho completo) y 'text-left' (texto a la izquierda)
-            para que se comporten y se vean exactamente como los '<a>' de antes.
-          */}
-          <button className="block w-full text-left py-2 px-4 rounded hover:bg-gray-700">
+        
+      <nav className="p-3 flex-1">
+          {/* 2. Añadimos el onClick para cambiar la vista a 'kanban' */}
+          <button 
+            onClick={() => setActiveView('kanban')}
+            className="block w-full text-left py-2 px-4 rounded hover:bg-gray-700"
+          >
             Tareas (Kanban)
           </button>
-          <button className="block w-full text-left py-2 px-4 rounded hover:bg-gray-700">
+          {/* 3. Añadimos el onClick para cambiar la vista a 'pomodoro' */}
+          <button 
+            onClick={() => setActiveView('pomodoro')}
+            className="block w-full text-left py-2 px-4 rounded hover:bg-gray-700"
+          >
             Pomodoro
           </button>
-          <button className="block w-full text-left py-2 px-4 rounded hover:bg-gray-700">
-            Finanzas
-          </button>
         </nav>
+
+      <div className="p-3 mt-auto">
+        <button 
+          onClick={handleLogout}
+          className="block w-full text-left py-2 px-4 rounded bg-red-600 hover:bg-red-700 transition-colors"
+        >
+          Cerrar Sesión
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,35 +1,72 @@
 // 1. Importamos 'useState' desde React
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Column from './Column';
 // 2. ¡Importamos DragOverlay y los nuevos hooks!
-import { DndContext, closestCorners, DragOverlay } from '@dnd-kit/core';
+import { DndContext, closestCorners, DragOverlay, defaultDropAnimationSideEffects } from '@dnd-kit/core';
 import TaskCard from './TaskCard'; 
+import { auth, db } from '../firebase.js';
+import { 
+  collection, 
+  onSnapshot, // Para escuchar en tiempo real
+  doc, 
+  updateDoc, // Para actualizar documentos
+  query,       // Para consultar
+  where        // Para filtrar por usuario
+} from "firebase/firestore";
 
-// --- DATOS INICIALES (El "Cerebro") ---
-const initialBoard = {
-  "Por Hacer": [
-    { id: 101, title: 'Hacer el layout del Sidebar' },
-    { id: 102, title: 'Conectar la base de datos (Firebase)' },
-  ],
-  "En Progreso": [
-    { id: 201, title: 'Construir el Kanban (Fase 2)' },
-  ],
-  "Hecho": [
-    { id: 301, title: 'Instalar Tailwind (Fase 1)' },
-    { id: 302, title: 'Limpiar proyecto de React (Fase 1)' },
-  ]
+const dropAnimationConfig = {
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: {
+      active: {
+        opacity: '0.5', // El clon se vuelve semi-transparente al soltar
+      },
+    },
+  }),
 };
-// ----------------------------------------
-
-// Tuvimos que importar TaskCard aquí para usarlo en el Overlay
 
 
 function Board() {
-  const [board, setBoard] = useState(initialBoard);
-  // 3. ¡Nuevo estado para la "tarea activa" (la que se está arrastrando)!
+  const [board, setBoard] = useState({
+    "Por Hacer": [],
+    "En Progreso": [],
+    "Hecho": []
+  });
   const [activeTask, setActiveTask] = useState(null);
+ useEffect(() => {
+    // Obtenemos el ID del usuario actual
+    const userId = auth.currentUser?.uid;
+    if (!userId) return; // Si no hay usuario, no hacemos nada
 
-  // 4. Nueva función: Se ejecuta CUANDO EMPIEZAS a arrastrar
+    // Creamos una referencia a la colección de "tareas"
+    const tasksCollectionRef = collection(db, 'tasks');
+    
+    // Creamos una consulta para obtener SOLO las tareas de este usuario
+    const q = query(tasksCollectionRef, where("userId", "==", userId));
+
+    // onSnapshot es el "oyente" en tiempo real.
+    // Se ejecuta una vez al inicio y luego cada vez que los datos cambian.
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      // Reiniciamos el tablero
+      const newBoard = { "Por Hacer": [], "En Progreso": [], "Hecho": [] };
+      
+      // Recorremos las tareas de la base de datos
+      snapshot.forEach((doc) => {
+        const task = { ...doc.data(), id: doc.id }; // Añadimos el ID del doc a la tarea
+        // Clasificamos la tarea en su columna
+        if (newBoard[task.status]) {
+          newBoard[task.status].push(task);
+        }
+      });
+      
+      // Actualizamos el estado de React con los datos de Firebase
+      setBoard(newBoard);
+    });
+
+    // Devolvemos la función 'unsubscribe' para limpiar el oyente
+    return () => unsubscribe(); 
+
+  }, []);
+
   const handleDragStart = (event) => {
     const { active } = event;
     // Buscamos la tarea en nuestro 'board' y la guardamos
@@ -37,27 +74,24 @@ function Board() {
     setActiveTask(task);
   };
 
-  // 5. Función actualizada: Se ejecuta CUANDO SUELTAS
-  const handleDragEnd = (event) => {
+
+  const handleDragEnd = async (event) => {
     const { active, over } = event;
 
     if (!over) {
-      setActiveTask(null); // Limpia la tarea activa si se suelta fuera
+      setActiveTask(null);
       return;
     }
 
     const activeId = active.id;
     const overId = over.id;
 
-    // --- LÓGICA DE COLUMNA DE ORIGEN (Sin cambios) ---
+
     const originColumnTitle = Object.keys(board).find(key => 
       board[key].some(task => task.id === activeId)
     );
 
-    // --- LÓGICA DE COLUMNA DE DESTINO (¡EL ARREGLO!) ---
-    // Arreglo para columnas vacías:
-    // Verificamos si 'overId' es el ID de una columna (ej. "Por Hacer")
-    // O si es el ID de otra tarea (para encontrar *su* columna)
+
     const destinationColumnTitle = board[overId] 
       ? overId // 1. Soltamos sobre una columna vacía (el ID es el título)
       : Object.keys(board).find(key => // 2. Soltamos sobre una tarea
@@ -69,25 +103,17 @@ function Board() {
       setActiveTask(null); // Limpia la tarea activa
       return;
     }
-
-    // --- LÓGICA DE MOVER (Sin cambios) ---
-    setBoard(currentBoard => {
-      const originTasks = [...currentBoard[originColumnTitle]];
-      const destinationTasks = [...currentBoard[destinationColumnTitle]];
-      
-      const taskIndex = originTasks.findIndex(task => task.id === activeId);
-      const [movedTask] = originTasks.splice(taskIndex, 1);
-      
-      destinationTasks.push(movedTask);
-
-      return {
-        ...currentBoard,
-        [originColumnTitle]: originTasks,
-        [destinationColumnTitle]: destinationTasks,
-      };
-    });
+ try {
+      // Creamos una referencia al documento que queremos mover
+      const taskDocRef = doc(db, 'tasks', activeId);
+      // Actualizamos solo el campo 'status'
+      await updateDoc(taskDocRef, {
+        status: destinationColumnTitle
+      });
+    } catch (error) {
+      console.error("Error al mover la tarea:", error);
+    }
     
-    // 6. Limpiamos la tarea activa al final
     setActiveTask(null);
   };
 
@@ -107,7 +133,7 @@ function Board() {
           <Column 
             title="Por Hacer" 
             tasks={board["Por Hacer"]} 
-            setBoard={setBoard}
+            setBoard={userId => setBoard(userId)}
           />
           <Column title="En Progreso" tasks={board["En Progreso"]} />
           <Column title="Hecho" tasks={board["Hecho"]} />
@@ -117,7 +143,7 @@ function Board() {
 
       {/* 8. ¡EL OVERLAY MÁGICO! */}
       {/* Esto renderiza el "clon" de la tarjeta que sigue al mouse */}
-      <DragOverlay>
+      <DragOverlay dropAnimation={dropAnimationConfig}> 
         {activeTask ? (
           <TaskCard task={activeTask} />
         ) : null}

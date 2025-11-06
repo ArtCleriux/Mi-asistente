@@ -1,25 +1,39 @@
-import React from 'react';
+import React, { useState } from 'react';
 import TaskCard from './TaskCard'; // Importamos la tarjeta
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { useDroppable } from '@dnd-kit/core';
+import { auth, db } from '../firebase.js';
+import { collection, addDoc } from "firebase/firestore";
+import NewTaskModal from './NewTaskModal.js';
 
-function Column({ title, tasks, setBoard }) { // 1. Recibimos 'tasks' y 'setBoard'
+function Column({ title, tasks }) { 
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // 2. Registramos la columna como "zona de soltar"
   const { setNodeRef } = useDroppable({
-    id: title, // El ID de esta zona es su título (ej. "Por Hacer")
+    id: title,
   });
 
-  // 3. (La función para añadir tareas que ya teníamos)
   const handleAddTask = () => {
-    const newTitle = window.prompt("Introduce el título de la nueva tarea:");
-    if (newTitle) {
-      const newTask = { id: Date.now(), title: newTitle };
-      setBoard(currentBoard => {
-        const newBoard = { ...currentBoard };
-        newBoard["Por Hacer"] = [newTask, ...newBoard["Por Hacer"]];
-        return newBoard;
-      });
+    setIsModalOpen(true);
+  };
+
+  const handleCreateTask = async ({ title: taskTitle, earnings }) => {
+    if (taskTitle && auth.currentUser) {
+      const newTask = {
+        title: taskTitle,
+        earnings: earnings,
+        status: "Por Hacer",
+        userId: auth.currentUser.uid,
+        createdAt: new Date(),
+      };
+
+      try {
+        const tasksCollectionRef = collection(db, 'tasks');
+        await addDoc(tasksCollectionRef, newTask);
+        setIsModalOpen(false);
+      } catch (error) {
+        console.error("Error al añadir tarea:", error);
+      }
     }
   };
 
@@ -27,13 +41,19 @@ function Column({ title, tasks, setBoard }) { // 1. Recibimos 'tasks' y 'setBoar
     // 4. Conectamos el 'ref' para que sea una zona de soltar
     <div ref={setNodeRef} className="bg-gray-800 p-4 rounded-lg">
       
-      {/* Cabecera (con el botón que ya tenías) */}
-      <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-4">
         <h3 className="font-bold text-lg">{title}</h3>
+        {/* El botón solo aparece en "Por Hacer" */}
         {title === "Por Hacer" && (
-          <button onClick={handleAddTask} className="text-gray-400 hover:text-white text-lg">+</button>
+          <button
+            onClick={handleAddTask}
+            className="text-gray-400 hover:text-white text-lg font-bold w-6 h-6 rounded-full flex items-center justify-center bg-gray-700 hover:bg-gray-600"
+          >
+            +
+          </button>
         )}
       </div>
+
 
       {/* 5. Envolvemos las tareas en el SortableContext */}
       <SortableContext 
@@ -48,6 +68,14 @@ function Column({ title, tasks, setBoard }) { // 1. Recibimos 'tasks' y 'setBoar
           ))}
         </div>
       </SortableContext>
+
+      {isModalOpen && (
+        <NewTaskModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleCreateTask}
+        />
+      )}
     </div>
   );
 }

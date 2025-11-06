@@ -1,6 +1,7 @@
 import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import TaskCardContent from './TaskCardContent.js';
 
 // 1. Recibimos el objeto 'task' completo
 function TaskCard({ task }) {
@@ -23,22 +24,20 @@ function TaskCard({ task }) {
 
   // 3. Estilos para la animación de "arrastre"
   const style = {
-    transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0 : 1, // <-- ¡ARREGLO AQUÍ! (Se oculta si se arrastra)
+    transform: CSS.Transform.toString(transform),
+    opacity: isDragging ? 0 : 1, // Hacemos la tarjeta original semi-transparente
   };
   
   return (
     // 4. Conectamos todo al <div> principal
-    <div
-      ref={setNodeRef}   // Registra el nodo
-      style={style}      // Aplica los estilos de "arrastre"
-      {...attributes}  // Aplica los atributos
-      {...listeners}   // Aplica los "oyentes" (para poder agarrarlo)
-      className="bg-gray-700 p-3 rounded-md shadow-md mb-3"
-    >
-      <p>{task.title}</p>
-    </div>
+  <TaskCardContent
+      ref={setNodeRef}   
+      style={style}      
+      task={task}
+      {...attributes}  
+      {...listeners}   
+    />
   );
 }
 
